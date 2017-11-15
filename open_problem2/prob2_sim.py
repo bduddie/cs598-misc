@@ -1,16 +1,8 @@
+from collections import defaultdict
 from igraph import Graph
 from scipy.stats import norm
 import numpy as np
 import random
-
-# Overall probability of adding an edge decreases over time (limit t->inf = 0)
-# Optional: Apply different factor to allow for more introverted/extroverted people
-# People have a capacity for friends, when above this it places stress on existing edges and increases the probability
-# that one will break, when below this it increases their likelihood of forming new edges
-# Probability of forming an edge to a person is proportional to their attribute similarity and their degree (# of
-# friends they have, i.e. how outgoing they are)
-# Add new nodes in batches (like every 10 epochs a new group of users is added)
-# Generate graphs so we can see it evolve over time
 
 random.seed(12345678)
 np.random.seed(12345678)
@@ -36,10 +28,10 @@ np.random.seed(12345678)
 # have high chance of becoming friends. The same principle works for breaking bonds in the inverse, with the node
 # randomly selecting from its neighborhood and having a higher chance of breaking a bond with the node if it is less
 # similar.
-NUM_ATTRS = 2
-MEAN_EDGE_CAPACITY = 3
-MAX_NODES = 10
-MAX_EPOCHS = 1000
+NUM_ATTRS = 3
+MEAN_EDGE_CAPACITY = 5
+MAX_NODES = 50
+MAX_EPOCHS = 2000
 
 
 attrs = [i for i in range(NUM_ATTRS)]
@@ -125,13 +117,13 @@ class FriendshipGraph:
                     if candidate_id != node_id and not self.g.are_connected(candidate_id, node_id):
                         break
                 if random.random() <= node.similarity(self.node_info[candidate_id]):
-                    print("adding tie b/w {} and {}".format(node_id, candidate_id))
+                    # print("adding tie b/w {} and {}".format(node_id, candidate_id))
                     self.g.add_edge(node_id, candidate_id)
 
             if try_remove and num_friends > 0:
                 candidate_id = random.choice(self.g.neighborhood(node_id))
                 if random.random() > node.similarity(self.node_info[candidate_id]):
-                    print("breaking tie b/w {} and {}".format(node_id, candidate_id))
+                    # print("breaking tie b/w {} and {}".format(node_id, candidate_id))
                     self.g.delete_edges(self.g.get_eid(node_id, candidate_id))
 
 
@@ -139,4 +131,35 @@ if __name__ == '__main__':
     fg = FriendshipGraph()
     for _ in range(MAX_EPOCHS):
         fg.run_epoch()
-        print(fg.g)
+        #print(fg.g)
+
+    print(fg.g)
+
+    sim_total = 0
+    sim_count = 0
+    for node in fg.node_info:
+        print("{}: {}".format(node.id, node.attrs))
+        for friend_id in fg.g.neighborhood(node.id):
+            if friend_id == node.id:
+                continue
+            friend = fg.node_info[friend_id]
+            print("  {} sim {:.6f}".format(friend_id, node.similarity(friend)))
+            sim_total += node.similarity(friend)
+            sim_count += 1
+
+    print("avg similarity among friends {:.6f}".format(sim_total / sim_count))
+
+    sim_total = sim_count = 0
+    for node in fg.node_info:
+        for other_id in range(node.id, len(fg.node_info)):
+            sim_total += node.similarity(fg.node_info[other_id])
+            sim_count += 1
+    print("avg similarity among all nodes {:.6f}".format(sim_total / sim_count))
+
+    # degree distribution
+    degrees = defaultdict(int)
+    for node_id in range(MAX_NODES):
+        degrees[fg.g.degree(node_id)] += 1
+    print(degrees)
+
+    pass
